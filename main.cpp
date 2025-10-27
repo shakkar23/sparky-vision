@@ -16,10 +16,10 @@
 #include <memory>
 
 struct Color {
-	uint8_t b;
-	uint8_t g;
-	uint8_t r;
-	uint8_t a;
+    uint8_t b;
+    uint8_t g;
+    uint8_t r;
+    uint8_t a;
 };
 
 
@@ -47,22 +47,22 @@ static Color hsv_to_rgb_manual(float h_degrees) {
     float x = 1.0f - fabs(fmod(h_prime, 2.0f) - 1.0f);
 
     // Determine the primary RGB triplet (R', G', B') based on the sextant
-    if (h_prime >= 0.0f && h_prime < 1.0f) {        // Red -> Yellow
+    if (h_prime >= 0.0f && h_prime < 1.0f) {        // resources.Red . Yellow
         r_float = 1.0f; g_float = x; b_float = 0.0f;
     }
-    else if (h_prime >= 1.0f && h_prime < 2.0f) { // Yellow -> Green
+    else if (h_prime >= 1.0f && h_prime < 2.0f) { // resources.Yellow . Green
         r_float = x; g_float = 1.0f; b_float = 0.0f;
     }
-    else if (h_prime >= 2.0f && h_prime < 3.0f) { // Green -> Cyan
+    else if (h_prime >= 2.0f && h_prime < 3.0f) { // resources.Green . Cyan
         r_float = 0.0f; g_float = 1.0f; b_float = x;
     }
-    else if (h_prime >= 3.0f && h_prime < 4.0f) { // Cyan -> Blue
+    else if (h_prime >= 3.0f && h_prime < 4.0f) { // resources.Cyan . Blue
         r_float = 0.0f; g_float = x; b_float = 1.0f;
     }
-    else if (h_prime >= 4.0f && h_prime < 5.0f) { // Blue -> Magenta
+    else if (h_prime >= 4.0f && h_prime < 5.0f) { // resources.Blue . Magenta
         r_float = x; g_float = 0.0f; b_float = 1.0f;
     }
-    else { // (h_prime >= 5.0f && h_prime < 6.0f) // Magenta -> Red
+    else { // (h_prime >= 5.0f && h_prime < 6.0f) // resources.Magenta . Red
         r_float = 1.0f; g_float = 0.0f; b_float = x;
     }
 
@@ -79,7 +79,7 @@ static Color float_to_roygbiv(float x) {
     if (x > 1.0f) x = 1.0f;
 
     // 2. Map the float to a Hue angle in degrees (0.0 to 300.0)
-    // Red (0) -> Violet (300)
+    // Red (0resources.) . Violet (300)
     float h_degrees = x * 300.0f;
 
     // 3. Convert the Hue to RGB using the manual formula
@@ -89,56 +89,52 @@ static Color float_to_roygbiv(float x) {
 class GUI : public olc::PixelGameEngine
 {
 public:
-	GUI() {
-        p = std::make_unique<rs2::pipeline>();
-        p->start();
-
-		frames = std::make_unique<rs2::frameset>();
-		depth_frame = std::make_unique<rs2::depth_frame>(rs2::depth_frame::frame());
-		depth_sprite.width = 0;
-		depth_sprite.height = 0;
+    GUI() {
+        resources.p = std::make_unique<rs2::pipeline>();
+        resources.p->start();
+        depth_sprite.width = 0;
+        depth_sprite.height = 0;
     }
 
-    std::unique_ptr<rs2::pipeline> p;
-
-    std::unique_ptr<rs2::frameset> frames;
-    std::unique_ptr<rs2::depth_frame> depth_frame;
-
-	std::vector<float> distances;
-	olc::Sprite depth_sprite;
-
-    bool OnUserCreate() override
-    {
-		this->sAppName = "RealSense Depth Viewer";
-        return true;
-	}
-    bool OnUserUpdate(float fElapsedTime) override
-    {
-        try
-        {
-            // Block program until frames arrive
-		    *frames = p->wait_for_frames(5000u);
-        }
-        catch (std::exception&err)
-        {
-            p->stop();
+    struct realsense_resources {
+        void reset() {
+            frames = rs2::frameset();
+            depth_frame = rs2::depth_frame::frame();
             p.reset(nullptr);
-            depth_frame.reset(nullptr);
-            frames.reset(nullptr);
-			bool initialized = false;
-            for(int i = 0; i <2; i++) {
-                try {
-                    p = std::make_unique<rs2::pipeline>();
-                    p->start();
-                    frames = std::make_unique<rs2::frameset>(p->wait_for_frames(5000u));
-					depth_frame = std::make_unique<rs2::depth_frame>(rs2::depth_frame::frame());
-					initialized = true;
-					break;
+            p = std::make_unique<rs2::pipeline>();
+            p->start();
+        }
+        std::unique_ptr<rs2::pipeline> p;
+        rs2::depth_frame depth_frame = rs2::depth_frame::frame();
+        rs2::frameset frames;
+    } resources;
 
-                } catch(std::exception& inner_err) {
+    std::vector<float> distances;
+    olc::Sprite depth_sprite;
+
+    bool OnUserCreate() override {
+        this->sAppName = "RealSense Depth Viewer";
+        return true;
+    }
+
+    bool OnUserUpdate(float fElapsedTime) override {
+        try {
+            // Block program until frames arrive
+            resources.frames = resources.p->wait_for_frames(1000u);
+        }
+        catch (std::exception& err) {
+            bool initialized = false;
+            for (int i = 0; i < 2; i++) {
+                try {
+                    resources.reset();
+                    resources.frames = resources.p->wait_for_frames(1000u);
+                    initialized = true;
+                    break;
+                }
+                catch (std::exception& inner_err) {
                     continue;
-				}
-			}
+                }
+            }
             if (!initialized) {
                 std::cerr << "Error during wait_for_frames: " << err.what() << std::endl;
                 return false;
@@ -146,27 +142,27 @@ public:
         }
 
         // Try to get a frame of a depth image
-		*depth_frame = frames->get_depth_frame();
+        resources.depth_frame = resources.frames.get_depth_frame();
 
-		// make the buffer larger if needed
-		if (distances.capacity() < depth_frame->get_width() * depth_frame->get_height())
-    		distances.reserve(depth_frame->get_width() * depth_frame->get_height());
+        // make the buffer larger if needed
+        if (distances.capacity() < resources.depth_frame.get_width() * resources.depth_frame.get_height())
+            distances.reserve(resources.depth_frame.get_width() * resources.depth_frame.get_height());
 
-		auto bytes_per_px = depth_frame->get_bytes_per_pixel();
-		auto ptr = (const uint8_t*)depth_frame->get_data();
-		auto stride_in_bytes = depth_frame->get_stride_in_bytes();
+        auto bytes_per_px = resources.depth_frame.get_bytes_per_pixel();
+        auto ptr = (const uint8_t*)resources.depth_frame.get_data();
+        auto stride_in_bytes = resources.depth_frame.get_stride_in_bytes();
 
         if (
-            depth_sprite.width != depth_frame->get_width() || 
-            depth_sprite.height != depth_frame->get_height()
+            depth_sprite.width != resources.depth_frame.get_width() ||
+            depth_sprite.height != resources.depth_frame.get_height()
             ) {
-            olc::Sprite new_sprite(depth_frame->get_width(), depth_frame->get_height());
+            olc::Sprite new_sprite(resources.depth_frame.get_width(), resources.depth_frame.get_height());
             std::swap(depth_sprite, new_sprite);
         }
-		
-        auto heights = std::views::iota(0, depth_frame->get_height());
+
+        auto heights = std::views::iota(0, resources.depth_frame.get_height());
         std::for_each(std::execution::unseq, heights.begin(), heights.end(), [&](auto y) {
-            for (int x = 0; x < depth_frame->get_width(); x++) {
+            for (int x = 0; x < resources.depth_frame.get_width(); x++) {
                 if (bytes_per_px == 2) {
                     uint16_t data = *((uint16_t*)(ptr + (y * stride_in_bytes) + (x * bytes_per_px)));
                     float normalized_depth = float(data) / float(std::numeric_limits<uint16_t>::max());
@@ -180,47 +176,45 @@ public:
                     depth_sprite.SetPixel(x, y, olc::Pixel(gray, gray, gray));
                 }
             }
-        });
-		
-		/*
-		for (int y = 0; y < depth_sprite.height; y++) {
-			for (int x = 0; x < depth_sprite.width; x++) {
-				;// auto d = distances[y * width + x];
-			}
-		}
-		*/
+            });
 
-		// Draw the depth image
-		DrawSprite(0, 0, &depth_sprite);
+        /*
+        for (int y = 0; y < depth_sprite.height; y++) {
+            for (int x = 0; x < depth_sprite.width; x++) {
+                ;// auto d = distances[y * width + x];
+            }
+        }
+        */
+
+        // Draw the depth image
+        DrawSprite(0, 0, &depth_sprite);
         return true;
     }
 
     void normalize_hitmap_awyzza(std::vector<float>& distances) {
         auto copy = distances;
         std::array<float, 256> thresholds{};
-        for(int i =0; i<256; i++) {
+        for (int i = 0; i < 256; i++) {
             std::nth_element(copy.begin(), copy.begin() + (copy.size() * i) / 256, copy.end());
-			thresholds[i] = copy[(copy.size() * i) / 256];
-		}
+            thresholds[i] = copy[(copy.size() * i) / 256];
+        }
 
-        for(auto& d : distances) {
-			d = std::distance(thresholds.begin(), std::ranges::lower_bound(thresholds, d));
-			d = std::clamp(d, 0.0f, 255.0f);
+        for (auto& d : distances) {
+            d = std::distance(thresholds.begin(), std::ranges::lower_bound(thresholds, d));
+            d = std::clamp(d, 0.0f, 255.0f);
         }
     }
 };
 
-int main(int argc, char * argv[]) try
+int main(int argc, char* argv[]) try
 {
-    while (true) {
-        GUI gui;
-	    if (gui.Construct(848, 480, 1, 1))
-		    gui.Start();
-    }
+    GUI gui;
+    if (gui.Construct(848, 480, 1, 1))
+        gui.Start();
 
     return EXIT_SUCCESS;
 }
-catch (const rs2::error & e)
+catch (const rs2::error& e)
 {
     std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
     return EXIT_FAILURE;
@@ -231,5 +225,5 @@ catch (const std::exception& e)
     return EXIT_FAILURE;
 }
 catch (...) {
-	return EXIT_FAILURE;
+    return EXIT_FAILURE;
 }
